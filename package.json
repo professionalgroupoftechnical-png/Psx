@@ -1,0 +1,7 @@
+{
+  "name": "psx-market-desk",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  }
+}

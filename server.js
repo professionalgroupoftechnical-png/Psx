@@ -5,6 +5,8 @@ const path = require("path");
 
 const ROOT = __dirname;
 const PORT = 8765;
+const ON_VERCEL = Boolean(process.env.VERCEL);
+const FETCH_MS = ON_VERCEL ? 8000 : 25000;
 const UA = "Mozilla/5.0 (compatible; PSXDesk/1.0)";
 const ALLOWED_EXT = new Set([".html", ".js", ".json", ".css", ".png", ".ico"]);
 const MIME = {
@@ -126,7 +128,7 @@ async function liveJson() {
   if (liveInflight) return liveInflight;
   liveInflight = (async () => {
     try {
-      const { body } = await fetchBuffer("https://dps.psx.com.pk/market-watch", 25000);
+      const { body } = await fetchBuffer("https://dps.psx.com.pk/market-watch", FETCH_MS);
       const rows = parseWatch(body.toString("utf8"));
       const json = JSON.stringify({ status: 1, ts: Date.now(), rows });
       liveCache = { t: Date.now(), body: json };
@@ -142,7 +144,7 @@ async function liveJson() {
 }
 
 function safeFile(urlPath) {
-  const file = urlPath === "/" ? "/psx-dashboard.html" : urlPath;
+  const file = urlPath === "/" || urlPath === "/index.html" ? "/psx-dashboard.html" : urlPath;
   const normalized = path.posix.normalize(file).replace(/^(\.\.(\/|$))+/, "/");
   const full = path.resolve(ROOT, "." + normalized);
   const root = path.resolve(ROOT);
@@ -152,7 +154,7 @@ function safeFile(urlPath) {
   return full;
 }
 
-const server = http.createServer((req, res) => {
+function handleRequest(req, res) {
   let url;
   try {
     url = new URL(req.url, "http://127.0.0.1");
@@ -193,13 +195,13 @@ const server = http.createServer((req, res) => {
 
   if (url.pathname.startsWith("/eod/")) {
     const sym = encodeURIComponent(url.pathname.slice(5));
-    proxyCached("eod", "https://dps.psx.com.pk/timeseries/eod/" + sym, res, 20000);
+    proxyCached("eod", "https://dps.psx.com.pk/timeseries/eod/" + sym, res, FETCH_MS);
     return;
   }
 
   if (url.pathname.startsWith("/int/")) {
     const sym = encodeURIComponent(url.pathname.slice(5));
-    proxyCached("int", "https://dps.psx.com.pk/timeseries/int/" + sym, res, 25000);
+    proxyCached("int", "https://dps.psx.com.pk/timeseries/int/" + sym, res, FETCH_MS);
     return;
   }
 
@@ -215,12 +217,16 @@ const server = http.createServer((req, res) => {
     }
     send(res, 200, MIME[path.extname(full).toLowerCase()] || "text/plain", data);
   });
-});
+}
 
-server.on("clientError", (err, socket) => {
-  if (socket.writable) socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
-});
+module.exports = { handleRequest };
 
-server.listen(PORT, "127.0.0.1", () => {
-  console.log("http://127.0.0.1:" + PORT + "/psx-dashboard.html");
-});
+if (!ON_VERCEL) {
+  const server = http.createServer(handleRequest);
+  server.on("clientError", (err, socket) => {
+    if (socket.writable) socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
+  });
+  server.listen(PORT, "127.0.0.1", () => {
+    console.log("http://127.0.0.1:" + PORT + "/");
+  });
+}
