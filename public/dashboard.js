@@ -6,12 +6,20 @@
   const LERP = 0.16;
   const LERP_EPS = 0.015;
 
+  function defaultViewCount() {
+    const w = window.innerWidth;
+    if (w < 480) return 12;
+    if (w < 768) return 20;
+    if (w < 1100) return 32;
+    return 50;
+  }
+
   let COMPANIES = [];
   let bySym = new Map();
   let sortMode = "gainers";
   let current = null;
   let chartCache = new Map();
-  let viewCount = 50;
+  let viewCount = defaultViewCount();
   let viewStart = 0;
   let rangePct = {};
   let rangeLoadId = 0;
@@ -417,12 +425,15 @@
     }
 
     const { view } = visibleSlice(rows);
-    const pad = { l: 48, r: 14, t: 36, b: 54 };
+    const compact = w < 768;
+    const pad = compact
+      ? { l: 36, r: 8, t: 28, b: compact && w < 480 ? 36 : 48 }
+      : { l: 48, r: 14, t: 36, b: 54 };
     const plotW = w - pad.l - pad.r;
     const plotH = h - pad.t - pad.b;
     const n = view.length;
     const slot = plotW / n;
-    const barW = Math.max(3, slot * 0.42);
+    const barW = Math.max(compact ? 2.5 : 3, slot * (compact ? 0.5 : 0.42));
     const vals = new Array(n);
     const loaded = [];
     let hasNeg = false;
@@ -464,7 +475,7 @@
     ctx.lineTo(w - pad.r, zeroY);
     ctx.stroke();
     ctx.fillStyle = "#ffffff";
-    ctx.font = "10px JetBrains Mono, monospace";
+    ctx.font = (compact ? "9px" : "10px") + " JetBrains Mono, monospace";
     ctx.textAlign = "right";
     ctx.fillText("+" + scaleMax.toFixed(0) + "%", pad.l - 6, pad.t + 8);
     ctx.fillText("0", pad.l - 6, zeroY);
@@ -530,21 +541,23 @@
         blinks.push({ s: c.s, v, left: x + barW / 2, top: Math.max(8, top - 16) });
       }
       ctx.fillStyle = selected ? goldHi : goldLab;
-      ctx.font = "bold 8px JetBrains Mono, monospace";
+      ctx.font = "bold " + (compact ? "7px" : "8px") + " JetBrains Mono, monospace";
       ctx.textAlign = "center";
       ctx.fillText(
         barLabel(v),
         x + barW / 2,
         v != null && v < 0 ? Math.min(baseY - 2, top + bh + 10) : Math.max(12, top - 5)
       );
-      ctx.save();
-      ctx.translate(x + barW / 2, h - 8);
-      ctx.rotate(-Math.PI / 2);
-      ctx.fillStyle = selected ? goldHi : gold;
-      ctx.font = (selected ? "bold " : "") + "9px JetBrains Mono, monospace";
-      ctx.textAlign = "left";
-      ctx.fillText(c.s, 0, 3);
-      ctx.restore();
+      if (slot >= 12) {
+        ctx.save();
+        ctx.translate(x + barW / 2, h - 8);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillStyle = selected ? goldHi : gold;
+        ctx.font = (selected ? "bold " : "") + (compact ? "8px" : "9px") + " JetBrains Mono, monospace";
+        ctx.textAlign = "left";
+        ctx.fillText(c.s, 0, 3);
+        ctx.restore();
+      }
     }
 
     blinks.sort((a, b) => b.v - a.v);
@@ -846,6 +859,7 @@
     }
     bySym = new Map(COMPANIES.map((c) => [c.s, c]));
     bindEvents();
+    viewCount = defaultViewCount();
     setInterval(tickClock, 1000);
     tickClock();
     setRangeDays(0);
