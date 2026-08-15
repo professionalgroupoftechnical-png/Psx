@@ -1,6 +1,6 @@
-const { handleRequest } = require("../server");
-
 module.exports = (req, res) => {
-  req.url = req.url || "/";
-  return handleRequest(req, res);
+  res.status(200).json({
+    status: "success",
+    message: "Vercel function is working"
+  });
 };
