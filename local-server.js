@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { send, liveJson, proxyCached } = require("./lib/psx");
 
-const ROOT = __dirname;
+const ROOT = path.join(__dirname, "public");
 const PORT = Number(process.env.PORT) || 8765;
 const ALLOWED_EXT = new Set([".html", ".js", ".json", ".css", ".png", ".ico"]);
 const MIME = {
@@ -96,6 +96,6 @@ const server = http.createServer(handleRequest);
 server.on("clientError", (err, socket) => {
   if (socket.writable) socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
 });
-server.listen(PORT, "0.0.0.0", () => {
-  console.log("listening on " + PORT);
+server.listen(PORT, "127.0.0.1", () => {
+  console.log("http://127.0.0.1:" + PORT + "/");
 });

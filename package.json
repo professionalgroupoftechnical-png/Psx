@@ -1,9 +1,6 @@
 {
   "name": "psx-market-desk",
   "private": true,
-  "scripts": {
-    "start": "node server.js"
-  },
   "engines": {
     "node": "20.x"
   }
