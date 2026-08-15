@@ -272,6 +272,8 @@
     display:flex;gap:4px;margin:6px 0;flex:0 0 auto;
     padding:3px;border-radius:12px;width:fit-content;
   }
+  .zoom-bar .zoom-txt{display:none;}
+  .period-scroll{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;min-width:0;flex:1;}
   .zoom-bar{
     display:flex;align-items:center;gap:3px;
     padding:3px;border-radius:12px;
@@ -357,14 +359,25 @@
     .wrap{padding:8px;min-height:72dvh;}
     .panel{border-radius:16px;padding:8px;min-height:62dvh;}
     .period-wrap{
-      flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
-      gap:6px;padding:0 0 8px;scrollbar-width:thin;
+      flex-wrap:wrap;overflow:visible;gap:8px;padding:0 0 8px;
     }
-    .period-group,.zoom-bar{flex-shrink:0;}
+    .period-scroll{
+      flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
+      width:100%;gap:6px;padding-bottom:4px;scrollbar-width:thin;
+    }
+    .period-group{flex-shrink:0;}
     .period-wrap button{
       padding:8px 11px;font-size:11px;min-height:38px;
     }
-    .zoom-bar button{width:36px;height:36px;}
+    .zoom-bar{
+      width:100%;justify-content:space-between;gap:6px;padding:6px 8px;
+    }
+    .zoom-bar .zoom-sym{display:none;}
+    .zoom-bar .zoom-txt{display:inline;}
+    .zoom-bar button{
+      width:auto;height:40px;flex:1;font-size:12px;font-weight:700;padding:0 8px;
+    }
+    .zoom-bar #zoomLabel{min-width:52px;font-size:11px;}
     .chart-box{min-height:280px;border-radius:14px;}
     .detail-panel{
       position:fixed;left:8px;right:8px;bottom:max(8px, env(safe-area-inset-bottom));
@@ -427,6 +440,7 @@
 <div class="wrap">
   <div class="panel">
     <div class="period-wrap" id="periodBar">
+      <div class="period-scroll">
       <div class="period-group">
         <span>Now</span>
         <button type="button" data-live="1" class="active">LIVE</button>
@@ -454,11 +468,12 @@
         <button type="button" data-years="4">4Y</button>
         <button type="button" data-years="5">5Y</button>
       </div>
+      </div>
       <div class="zoom-bar">
-        <span>View</span>
-        <button type="button" id="zoomOut" title="Zoom out">−</button>
+        <span>Names</span>
+        <button type="button" id="zoomOut" title="More names"><span class="zoom-sym">−</span><span class="zoom-txt">More</span></button>
         <span id="zoomLabel">50</span>
-        <button type="button" id="zoomIn" title="Zoom in">+</button>
+        <button type="button" id="zoomIn" title="Fewer names"><span class="zoom-sym">+</span><span class="zoom-txt">Fewer</span></button>
         <button type="button" id="panLeft" title="Previous">‹</button>
         <button type="button" id="panRight" title="Next">›</button>
       </div>
