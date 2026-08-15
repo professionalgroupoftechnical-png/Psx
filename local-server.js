@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { send, liveJson, proxyCached } = require("./lib/psx");
 
-const ROOT = path.join(__dirname, "public");
+const ROOT = __dirname;
 const PORT = Number(process.env.PORT) || 8765;
 const ALLOWED_EXT = new Set([".html", ".js", ".json", ".css", ".png", ".ico"]);
 const MIME = {
