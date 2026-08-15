@@ -1,13 +1,10 @@
 const http = require("http");
-const https = require("https");
 const fs = require("fs");
 const path = require("path");
+const { send, liveJson, proxyCached, FETCH_MS } = require("./lib/psx");
 
 const ROOT = __dirname;
-const PORT = 8765;
-const ON_VERCEL = Boolean(process.env.VERCEL);
-const FETCH_MS = ON_VERCEL ? 8000 : 25000;
-const UA = "Mozilla/5.0 (compatible; PSXDesk/1.0)";
+const PORT = process.env.PORT || 8765;
 const ALLOWED_EXT = new Set([".html", ".js", ".json", ".css", ".png", ".ico"]);
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -18,133 +15,9 @@ const MIME = {
   ".ico": "image/x-icon",
 };
 
-function send(res, status, type, body) {
-  if (res.headersSent || res.writableEnded) return;
-  res.writeHead(status, {
-    "Content-Type": type,
-    "Access-Control-Allow-Origin": "*",
-    "Cache-Control": "no-store",
-  });
-  res.end(body);
-}
-
-function fetchBuffer(url, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const req = https.get(
-      url,
-      { headers: { "User-Agent": UA, Accept: "application/json,text/html" } },
-      (r) => {
-        const chunks = [];
-        r.on("data", (c) => chunks.push(c));
-        r.on("end", () =>
-          resolve({ status: r.statusCode || 200, body: Buffer.concat(chunks) })
-        );
-      }
-    );
-    req.on("error", reject);
-    req.setTimeout(timeoutMs || 20000, () => {
-      req.destroy();
-      reject(new Error("timeout"));
-    });
-  });
-}
-
-const cache = {
-  eod: new Map(),
-  int: new Map(),
-};
-const TTL = { eod: 10 * 60 * 1000, int: 8 * 1000 };
-const MAX_CACHE = { eod: 80, int: 24 };
-
-function cacheGet(map, key, ttl) {
-  const hit = map.get(key);
-  if (!hit) return null;
-  if (Date.now() - hit.t > ttl) {
-    map.delete(key);
-    return null;
-  }
-  return hit.body;
-}
-
-function cacheSet(map, key, body, max) {
-  if (map.size >= max) {
-    const first = map.keys().next().value;
-    if (first !== undefined) map.delete(first);
-  }
-  map.set(key, { t: Date.now(), body });
-}
-
-async function proxyCached(kind, url, res, timeoutMs) {
-  const key = url.toUpperCase();
-  const cached = cacheGet(cache[kind], key, TTL[kind]);
-  if (cached) {
-    send(res, 200, "application/json", cached);
-    return;
-  }
-  try {
-    const { status, body } = await fetchBuffer(url, timeoutMs);
-    if (status >= 200 && status < 300) cacheSet(cache[kind], key, body, MAX_CACHE[kind]);
-    send(res, status, "application/json", body);
-  } catch (e) {
-    const stale = cache[kind].get(key);
-    if (stale) send(res, 200, "application/json", stale.body);
-    else send(res, e.message === "timeout" ? 504 : 502, "text/plain", String(e.message));
-  }
-}
-
-function parseWatch(html) {
-  const out = [];
-  const idx = html.indexOf("tbl__body");
-  const body = idx >= 0 ? html.slice(idx) : html;
-  const trRe = /<tr>([\s\S]*?)<\/tr>/g;
-  let m;
-  while ((m = trRe.exec(body))) {
-    const tr = m[1];
-    if (!tr.includes("data-search=")) continue;
-    const orders = [];
-    const oRe = /data-order="([^"]*)"/g;
-    let om;
-    while ((om = oRe.exec(tr))) orders.push(om[1]);
-    if (orders.length < 9) continue;
-    const p = Number(orders[5]);
-    const d = Number(orders[7]);
-    const v = Number(String(orders[8]).replace(/,/g, ""));
-    if (!Number.isFinite(p)) continue;
-    out.push({
-      s: orders[0],
-      p,
-      d: Number.isFinite(d) ? d : 0,
-      v: Number.isFinite(v) ? v : 0,
-    });
-  }
-  return out;
-}
-
-let liveCache = { t: 0, body: null };
-let liveInflight = null;
-
-async function liveJson() {
-  if (liveCache.body && Date.now() - liveCache.t < 7000) return liveCache.body;
-  if (liveInflight) return liveInflight;
-  liveInflight = (async () => {
-    try {
-      const { body } = await fetchBuffer("https://dps.psx.com.pk/market-watch", FETCH_MS);
-      const rows = parseWatch(body.toString("utf8"));
-      const json = JSON.stringify({ status: 1, ts: Date.now(), rows });
-      liveCache = { t: Date.now(), body: json };
-      return json;
-    } catch (e) {
-      if (liveCache.body) return liveCache.body;
-      throw e;
-    } finally {
-      liveInflight = null;
-    }
-  })();
-  return liveInflight;
-}
-
 function safeFile(urlPath) {
-  const file = urlPath === "/" || urlPath === "/index.html" ? "/psx-dashboard.html" : urlPath;
+  const file =
+    urlPath === "/" || urlPath === "/index.html" ? "/index.html" : urlPath;
   const normalized = path.posix.normalize(file).replace(/^(\.\.(\/|$))+/, "/");
   const full = path.resolve(ROOT, "." + normalized);
   const root = path.resolve(ROOT);
@@ -219,9 +92,7 @@ function handleRequest(req, res) {
   });
 }
 
-module.exports = { handleRequest };
-
-if (!ON_VERCEL) {
+if (!process.env.VERCEL) {
   const server = http.createServer(handleRequest);
   server.on("clientError", (err, socket) => {
     if (socket.writable) socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
