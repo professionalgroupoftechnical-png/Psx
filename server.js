@@ -1,10 +1,10 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { send, liveJson, proxyCached, FETCH_MS } = require("./api/_lib");
+const { send, liveJson, proxyCached } = require("./lib/psx");
 
 const ROOT = __dirname;
-const PORT = process.env.PORT || 8765;
+const PORT = Number(process.env.PORT) || 8765;
 const ALLOWED_EXT = new Set([".html", ".js", ".json", ".css", ".png", ".ico"]);
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -68,13 +68,13 @@ function handleRequest(req, res) {
 
   if (url.pathname.startsWith("/eod/")) {
     const sym = encodeURIComponent(url.pathname.slice(5));
-    proxyCached("eod", "https://dps.psx.com.pk/timeseries/eod/" + sym, res, FETCH_MS);
+    proxyCached("eod", "https://dps.psx.com.pk/timeseries/eod/" + sym, res);
     return;
   }
 
   if (url.pathname.startsWith("/int/")) {
     const sym = encodeURIComponent(url.pathname.slice(5));
-    proxyCached("int", "https://dps.psx.com.pk/timeseries/int/" + sym, res, FETCH_MS);
+    proxyCached("int", "https://dps.psx.com.pk/timeseries/int/" + sym, res);
     return;
   }
 
@@ -92,12 +92,10 @@ function handleRequest(req, res) {
   });
 }
 
-if (!process.env.VERCEL) {
-  const server = http.createServer(handleRequest);
-  server.on("clientError", (err, socket) => {
-    if (socket.writable) socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
-  });
-  server.listen(PORT, "127.0.0.1", () => {
-    console.log("http://127.0.0.1:" + PORT + "/");
-  });
-}
+const server = http.createServer(handleRequest);
+server.on("clientError", (err, socket) => {
+  if (socket.writable) socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
+});
+server.listen(PORT, "0.0.0.0", () => {
+  console.log("listening on " + PORT);
+});
