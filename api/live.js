@@ -1,4 +1,4 @@
-const { liveJson, send } = require("../lib/psx");
+const { liveJson, send } = require("./_lib");
 
 module.exports = async function handler(req, res) {
   try {

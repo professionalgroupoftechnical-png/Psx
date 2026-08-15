@@ -1,43 +1,39 @@
-const https = require("https");
-
 const UA = "Mozilla/5.0 (compatible; PSXDesk/1.0)";
 const FETCH_MS = process.env.VERCEL ? 8000 : 25000;
 
 function send(res, status, type, body) {
+  if (!res || typeof res.end !== "function") return;
   if (res.headersSent || res.writableEnded) return;
-  res.writeHead(status, {
-    "Content-Type": type,
-    "Access-Control-Allow-Origin": "*",
-    "Cache-Control": "no-store",
-  });
+  res.statusCode = status;
+  if (typeof res.setHeader === "function") {
+    res.setHeader("Content-Type", type);
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Cache-Control", "no-store");
+  }
   res.end(body);
 }
 
-function fetchBuffer(url, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const req = https.get(
-      url,
-      { headers: { "User-Agent": UA, Accept: "application/json,text/html" } },
-      (r) => {
-        const chunks = [];
-        r.on("data", (c) => chunks.push(c));
-        r.on("end", () =>
-          resolve({ status: r.statusCode || 200, body: Buffer.concat(chunks) })
-        );
-      }
-    );
-    req.on("error", reject);
-    req.setTimeout(timeoutMs || 20000, () => {
-      req.destroy();
-      reject(new Error("timeout"));
+async function fetchText(url, timeoutMs) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs || FETCH_MS);
+  try {
+    const r = await fetch(url, {
+      headers: { "User-Agent": UA, Accept: "application/json,text/html" },
+      signal: ctrl.signal,
     });
-  });
+    const body = await r.text();
+    return { status: r.status || 200, body };
+  } catch (e) {
+    if (e && (e.name === "AbortError" || e.message === "This operation was aborted")) {
+      throw new Error("timeout");
+    }
+    throw e;
+  } finally {
+    clearTimeout(t);
+  }
 }
 
-const cache = {
-  eod: new Map(),
-  int: new Map(),
-};
+const cache = { eod: new Map(), int: new Map() };
 const TTL = { eod: 10 * 60 * 1000, int: 8 * 1000 };
 const MAX_CACHE = { eod: 80, int: 24 };
 
@@ -95,8 +91,8 @@ async function liveJson() {
   if (liveInflight) return liveInflight;
   liveInflight = (async () => {
     try {
-      const { body } = await fetchBuffer("https://dps.psx.com.pk/market-watch", FETCH_MS);
-      const rows = parseWatch(body.toString("utf8"));
+      const { body } = await fetchText("https://dps.psx.com.pk/market-watch", FETCH_MS);
+      const rows = parseWatch(body);
       const json = JSON.stringify({ status: 1, ts: Date.now(), rows });
       liveCache = { t: Date.now(), body: json };
       return json;
@@ -110,7 +106,7 @@ async function liveJson() {
   return liveInflight;
 }
 
-async function proxyCached(kind, url, res, timeoutMs) {
+async function proxyCached(kind, url, res) {
   const key = url.toUpperCase();
   const cached = cacheGet(cache[kind], key, TTL[kind]);
   if (cached) {
@@ -118,7 +114,7 @@ async function proxyCached(kind, url, res, timeoutMs) {
     return;
   }
   try {
-    const { status, body } = await fetchBuffer(url, timeoutMs || FETCH_MS);
+    const { status, body } = await fetchText(url, FETCH_MS);
     if (status >= 200 && status < 300) cacheSet(cache[kind], key, body, MAX_CACHE[kind]);
     send(res, status, "application/json", body);
   } catch (e) {
@@ -132,7 +128,7 @@ function symbolFromReq(req, prefix) {
   const q = req.query && (req.query.sym || req.query.path);
   if (q) return String(Array.isArray(q) ? q[0] : q);
   try {
-    const pathName = new URL(req.url, "http://127.0.0.1").pathname;
+    const pathName = new URL(req.url || "", "http://127.0.0.1").pathname;
     const parts = pathName.split("/").filter(Boolean);
     const idx = parts.lastIndexOf(prefix);
     if (idx >= 0 && parts[idx + 1]) return decodeURIComponent(parts[idx + 1]);

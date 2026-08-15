@@ -1,6 +1,5 @@
 {
   "rewrites": [
-    { "source": "/", "destination": "/index.html" },
     { "source": "/live", "destination": "/api/live" },
     { "source": "/eod/:sym", "destination": "/api/eod/:sym" },
     { "source": "/int/:sym", "destination": "/api/int/:sym" }

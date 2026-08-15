@@ -1,7 +1,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { send, liveJson, proxyCached, FETCH_MS } = require("./lib/psx");
+const { send, liveJson, proxyCached, FETCH_MS } = require("./api/_lib");
 
 const ROOT = __dirname;
 const PORT = process.env.PORT || 8765;
